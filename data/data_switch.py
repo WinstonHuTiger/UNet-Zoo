@@ -7,6 +7,8 @@ def data_switch(data_identifier):
         from data.lidc_data import lidc_data as data_loader
     elif data_identifier == 'uzh_prostate':
         from data.uzh_prostate_data import uzh_prostate_data as data_loader
+    elif data_identifier == "qubiq":
+        from data.qubiq_data import qubiq_data as data_loader 
     else:
         raise ValueError('Unknown data identifier: %s' % data_identifier)
 
