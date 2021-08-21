@@ -363,7 +363,7 @@ class UNetModel:
 
             for i in range(10):
                 self.logger.info('Doing iteration {}'.format(i))
-                n_samples = 10
+                n_samples = 50
 
                 for ii in range(data.test.images.shape[0]):
 
