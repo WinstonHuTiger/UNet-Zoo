@@ -29,6 +29,7 @@ class UNetModel:
         Args:
             exp_config: Experiment configuration file as given in the experiment folder
     '''
+
     def __init__(self, exp_config, logger=None, tensorboard=True):
 
         self.net = exp_config.model(input_channels=exp_config.input_channels,
@@ -46,7 +47,8 @@ class UNetModel:
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.net.to(self.device)
-        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=1e-3, weight_decay=1e-5)
+        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=exp_config.learning_rate,
+                                          weight_decay=exp_config.weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, 'min', min_lr=1e-4, verbose=True, patience=50000)
 
@@ -84,6 +86,7 @@ class UNetModel:
         self.best_dice = -1
         self.best_loss = np.inf
         self.best_ged = np.inf
+        self.best_qubiq = -1
         self.best_ncc = -1
 
         if tensorboard:
@@ -126,7 +129,7 @@ class UNetModel:
 
             if self.iteration % self.exp_config.logging_frequency == 0:
                 self.logger.info('Iteration {} Loss {}'.format(self.iteration, self.loss))
-                #self._create_tensorboard_summary()
+                # self._create_tensorboard_summary()
                 self.tot_loss = 0
                 self.kl_loss = 0
                 self.reconstruction_loss = 0
@@ -153,10 +156,11 @@ class UNetModel:
             elbo_list = []
             kl_list = []
             recon_list = []
+            qubiq_list = []
 
             time_ = time.time()
 
-            validation_set_size = data.validation.images.shape[0]\
+            validation_set_size = data.validation.images.shape[0] \
                 if self.exp_config.num_validation_images == 'all' else self.exp_config.num_validation_images
 
             for ii in range(validation_set_size):
@@ -165,6 +169,9 @@ class UNetModel:
 
                 # from HW to NCHW
                 x_b = data.validation.images[ii, ...]
+                if len(x_b.shape) == 3:
+                    x_b = x_b.squeeze()
+
                 patch = torch.tensor(x_b, dtype=torch.float32).to(self.device)
                 val_patch = patch.unsqueeze(dim=0).unsqueeze(dim=1)
 
@@ -201,11 +208,16 @@ class UNetModel:
 
                 # num_gts, nlabels, H, W
                 s_gt_arr_r = val_masks.unsqueeze(dim=1)
-                ground_truth_arrangement_one_hot = utils.convert_batch_to_onehot(s_gt_arr_r, nlabels=self.exp_config.n_classes)
+                ground_truth_arrangement_one_hot = utils.convert_batch_to_onehot(s_gt_arr_r,
+                                                                                 nlabels=self.exp_config.n_classes)
                 ncc = utils.variance_ncc_dist(s_prediction_softmax_arrangement, ground_truth_arrangement_one_hot)
 
-                s_ = torch.argmax(s_prediction_softmax_mean, dim=0) # HW
-                s = val_mask.view(val_mask.shape[-2], val_mask.shape[-1]) #HW
+                s_ = torch.argmax(s_prediction_softmax_mean, dim=0)  # HW
+                s = val_mask.view(val_mask.shape[-2], val_mask.shape[-1])  # HW
+                temp = np.expand_dims(s_gt_arr.transpose((2, 1, 0)), axis=0)
+                temp = np.concatenate([temp] * self.exp_config.validation_samples, axis=0)
+                qubiq = utils.QUBIQ(temp
+                                    , s_prediction_softmax_arrangement.data.cpu().numpy())
 
                 # Write losses to list
                 per_lbl_dice = []
@@ -215,8 +227,9 @@ class UNetModel:
 
                     if torch.sum(binary_gt) == 0 and torch.sum(binary_pred) == 0:
                         per_lbl_dice.append(1.0)
-                    elif torch.sum(binary_pred) > 0 and torch.sum(binary_gt) == 0 or torch.sum(binary_pred) == 0 and torch.sum(
-                            binary_gt) > 0:
+                    elif torch.sum(binary_pred) > 0 and torch.sum(binary_gt) == 0 or torch.sum(
+                            binary_pred) == 0 and torch.sum(
+                        binary_gt) > 0:
                         per_lbl_dice.append(0.0)
                     else:
                         per_lbl_dice.append(dc(binary_pred.detach().cpu().numpy(), binary_gt.detach().cpu().numpy()))
@@ -224,10 +237,12 @@ class UNetModel:
                 dice_list.append(per_lbl_dice)
                 elbo_list.append(elbo)
                 kl_list.append(kl)
+
                 recon_list.append(recon)
 
                 ged_list.append(ged)
                 ncc_list.append(ncc)
+                qubiq_list.append(qubiq)
 
             dice_tensor = torch.tensor(dice_list)
             per_structure_dice = dice_tensor.mean(dim=0)
@@ -247,11 +262,13 @@ class UNetModel:
 
             self.avg_ged = torch.mean(ged_tensor)
             self.avg_ncc = torch.mean(ncc_tensor)
+            self.avg_qubiq = np.mean(np.mean(qubiq_list, axis=1))
 
             self.logger.info(' - Foreground dice: %.4f' % torch.mean(self.foreground_dice))
             self.logger.info(' - Mean (neg.) ELBO: %.4f' % self.val_elbo)
             self.logger.info(' - Mean GED: %.4f' % self.avg_ged)
             self.logger.info(' - Mean NCC: %.4f' % self.avg_ncc)
+            self.logger.info(" - Mean QUBIQ %.4F" % self.avg_qubiq)
 
             if torch.mean(per_structure_dice) >= self.best_dice:
                 self.best_dice = torch.mean(per_structure_dice)
@@ -269,8 +286,11 @@ class UNetModel:
                 self.best_ncc = self.avg_ncc
                 self.logger.info('New best NCC score! (%.3f)' % self.best_ncc)
                 self.save_model(savename='best_ncc')
-
-            self.logger.info('Validation took {} seconds'.format(time.time()-time_))
+            if self.avg_qubiq >= self.best_qubiq:
+                self.best_qubiq = self.avg_qubiq
+                self.logger.info("New best QUBIQ score! (%.4f)" % self.best_qubiq)
+                self.save_model(savename="best_qubiq")
+            self.logger.info('Validation took {} seconds'.format(time.time() - time_))
 
         self.net.train()
 
@@ -282,7 +302,6 @@ class UNetModel:
             self.net.train()
 
             for i, data in enumerate(trainDataLoader):
-
                 # load data
                 inputs, pid, labels = data
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -300,11 +319,16 @@ class UNetModel:
         self.net.eval()
         with torch.no_grad():
             # calculate the means since the last validation
-            self.training_writer.add_scalar('Mean_loss', self.tot_loss/self.exp_config.validation_frequency, global_step=self.iteration)
-            self.training_writer.add_scalar('KL_Divergence_loss', self.kl_loss/self.exp_config.validation_frequency, global_step=self.iteration)
-            self.training_writer.add_scalar('Reconstruction_loss', self.reconstruction_loss/self.exp_config.validation_frequency, global_step=self.iteration)
+            self.training_writer.add_scalar('Mean_loss', self.tot_loss / self.exp_config.validation_frequency,
+                                            global_step=self.iteration)
+            self.training_writer.add_scalar('KL_Divergence_loss', self.kl_loss / self.exp_config.validation_frequency,
+                                            global_step=self.iteration)
+            self.training_writer.add_scalar('Reconstruction_loss',
+                                            self.reconstruction_loss / self.exp_config.validation_frequency,
+                                            global_step=self.iteration)
 
-            self.validation_writer.add_scalar('Dice_score_of_last_validation', self.foreground_dice, global_step=self.iteration)
+            self.validation_writer.add_scalar('Dice_score_of_last_validation', self.foreground_dice,
+                                              global_step=self.iteration)
             self.validation_writer.add_scalar('GED_score_of_last_validation', self.avg_ged, global_step=self.iteration)
             self.validation_writer.add_scalar('NCC_score_of_last_validation', self.avg_ncc, global_step=self.iteration)
 
@@ -314,13 +338,13 @@ class UNetModel:
 
             # plot images of current patch for summary
             sample = torch.softmax(self.net.sample(), dim=1)
-            sample1 = torch.chunk(sample, 2, dim=1)[self.exp_config.n_classes-1]
+            sample1 = torch.chunk(sample, 2, dim=1)[self.exp_config.n_classes - 1]
 
             self.training_writer.add_image('Patch/GT/Sample',
-                                          torch.cat([self.patch,
-                                                     self.mask.view(-1, 1, self.exp_config.image_size[1],
-                                                                    self.exp_config.image_size[2]), sample1],
-                                                    dim=2), global_step=self.iteration, dataformats='NCHW')
+                                           torch.cat([self.patch,
+                                                      self.mask.view(-1, 1, self.exp_config.image_size[1],
+                                                                     self.exp_config.image_size[2]), sample1],
+                                                     dim=2), global_step=self.iteration, dataformats='NCHW')
 
             if self.device == torch.device('cuda'):
                 allocated_memory = torch.cuda.max_memory_allocated(self.device)
@@ -418,10 +442,11 @@ class UNetModel:
                             per_lbl_dice.append(1.0)
                         elif torch.sum(binary_pred) > 0 and torch.sum(binary_gt) == 0 or torch.sum(
                                 binary_pred) == 0 and torch.sum(
-                                binary_gt) > 0:
+                            binary_gt) > 0:
                             per_lbl_dice.append(0.0)
                         else:
-                            per_lbl_dice.append(dc(binary_pred.detach().cpu().numpy(), binary_gt.detach().cpu().numpy()))
+                            per_lbl_dice.append(
+                                dc(binary_pred.detach().cpu().numpy(), binary_gt.detach().cpu().numpy()))
                     dice_list.append(per_lbl_dice)
 
                     ged_list.append(ged)
@@ -430,7 +455,6 @@ class UNetModel:
                     if ii % 100 == 0:
                         self.logger.info(' - Mean GED: %.4f' % torch.mean(torch.tensor(ged_list)))
                         self.logger.info(' - Mean NCC: %.4f' % torch.mean(torch.tensor(ncc_list)))
-
 
                 dice_tensor = torch.tensor(dice_list)
                 per_structure_dice = dice_tensor.mean(dim=0)
@@ -443,8 +467,10 @@ class UNetModel:
                     self.exp_config.log_dir_name,
                     self.exp_config.experiment_name)
 
-                np.savez(os.path.join(model_path, 'ged%s_%s_2.npz' % (str(n_samples), model_selection)), ged_tensor.numpy())
-                np.savez(os.path.join(model_path, 'ncc%s_%s_2.npz' % (str(n_samples), model_selection)), ncc_tensor.numpy())
+                np.savez(os.path.join(model_path, 'ged%s_%s_2.npz' % (str(n_samples), model_selection)),
+                         ged_tensor.numpy())
+                np.savez(os.path.join(model_path, 'ncc%s_%s_2.npz' % (str(n_samples), model_selection)),
+                         ncc_tensor.numpy())
 
                 self.avg_dice = torch.mean(dice_tensor)
                 self.foreground_dice = torch.mean(dice_tensor, dim=0)[1]
@@ -470,14 +496,13 @@ class UNetModel:
                 end_dice += self.avg_dice
                 end_ged += self.avg_ged
                 end_ncc += self.avg_ncc
-            self.logger.info('Mean dice: {}'.format(end_dice/10))
+            self.logger.info('Mean dice: {}'.format(end_dice / 10))
             self.logger.info('Mean ged: {}'.format(end_ged / 10))
             self.logger.info('Mean ncc: {}'.format(end_ncc / 10))
 
     def generate_images(self, data, sys_config):
         self.net.eval()
         with torch.no_grad():
-
             model_selection = self.exp_config.experiment_name + '_best_dice.pth'
             self.logger.info('Generating samples {}'.format(model_selection))
 
@@ -503,8 +528,7 @@ class UNetModel:
 
             n_samples = 10
 
-            for ii in range(31,100):
-
+            for ii in range(31, 100):
                 s_gt_arr = data.test.labels[ii, ...]
 
                 # from HW to NCHW
@@ -553,7 +577,6 @@ class UNetModel:
                        pad_value=1,
                        scale_each=True,
                        normalize=True)
-
 
     def save_model(self, savename):
         model_name = self.exp_config.experiment_name + '_' + savename + '.pth'

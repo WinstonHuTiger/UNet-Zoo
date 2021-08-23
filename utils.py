@@ -143,6 +143,34 @@ def ncc(a,v, zero_norm=True):
         v = (v) / np.std(v)
 
     return np.correlate(a, v)
+def __sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def QUBIQ(target, logit, eps=1.0):
+    # print(logit.shape)
+    # print(target.shape)
+    # if self.loss == 'ce' or self.loss == 'level-thres':
+    #     target = target / 10.0
+    #     logit = np.argmax(logit, axis=1) / 10.0
+    # else:
+
+    logit = np.mean(logit> 0.9, axis=1)
+    target = np.mean(target, axis=1)
+
+    target_slice = np.floor(target * 10)
+    logit_slice = np.floor(logit * 10)
+    target_slice[target_slice == 10] = 9
+    logit_slice[logit_slice == 10] = 9
+
+    tp = [(target_slice == level).astype(int) for level in range(10)]
+    lp = [(logit_slice == level).astype(int) for level in range(10)]
+
+    dice = np.zeros(10)
+    for ii in range(10):
+        intersection = tp[ii] * lp[ii]
+        dice[ii] += (2. * intersection.sum() + 1.) / (tp[ii].sum() + lp[ii].sum() + 1.)
+    # dice = np.mean(np.mean(qubiq, axis=1))
+    return dice
 
 
 def generalised_energy_distance(sample_arr, gt_arr, nlabels=1, **kwargs):
