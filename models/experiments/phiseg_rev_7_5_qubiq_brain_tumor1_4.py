@@ -1,5 +1,4 @@
-import torch
-import torch.nn as nn
+
 from models.phiseg import PHISeg
 from utils import normalise_image
 from data.qubiq_data import qubiq_data
@@ -19,8 +18,8 @@ latent_levels = 5
 
 iterations = 5000
 
-n_classes = 7
-num_labels_per_subject = 7
+n_classes = 3
+num_labels_per_subject = 3
 
 no_convs_fcomb = 4  # not used
 beta = 10.0  # not used
@@ -29,7 +28,7 @@ use_reversible = True
 exponential_weighting = True
 
 # use 1 for grayscale, 3 for RGB images
-input_channels = 1
+input_channels = 4
 epochs_to_train = 20
 batch_size = 4
 image_size = (4, 256, 256)

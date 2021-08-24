@@ -3,7 +3,7 @@ from models.phiseg import PHISeg
 from utils import normalise_image
 from data.qubiq_data import qubiq_data
 
-experiment_name = 'PHISegRev_7_5_qubiq_4_prostate'
+experiment_name = 'PHISegRev_7_5_qubiq_4_prostate1'
 log_dir_name = 'qubiq'
 
 data_loader = qubiq_data
@@ -18,8 +18,8 @@ latent_levels = 5
 
 iterations = 5000
 
-n_classes = 3
-num_labels_per_subject = 3
+n_classes = 6
+num_labels_per_subject = 6
 
 no_convs_fcomb = 4  # not used
 beta = 10.0  # not used
@@ -28,10 +28,10 @@ use_reversible = True
 exponential_weighting = True
 
 # use 1 for grayscale, 3 for RGB images
-input_channels = 4
+input_channels = 1
 epochs_to_train = 20
 batch_size = 4
-image_size = (4, 256, 256)
+image_size = (1, 640, 640)
 
 augmentation_options = {'do_flip_lr': True,
                         'do_flip_ud': True,

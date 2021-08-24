@@ -28,10 +28,10 @@ use_reversible = True
 exponential_weighting = True
 
 # use 1 for grayscale, 3 for RGB images
-input_channels = 4
+input_channels = 1
 epochs_to_train = 20
 batch_size = 4
-image_size = (4, 256, 256)
+image_size = (1, 512, 512)
 
 augmentation_options = {'do_flip_lr': True,
                         'do_flip_ud': True,
