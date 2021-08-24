@@ -169,15 +169,21 @@ class UNetModel:
 
                 # from HW to NCHW
                 x_b = data.validation.images[ii, ...]
-                if len(x_b.shape) == 3:
+                if len(x_b.shape) == 3 and x_b.shape[0] != 4:
                     x_b = x_b.squeeze()
 
                 patch = torch.tensor(x_b, dtype=torch.float32).to(self.device)
-                val_patch = patch.unsqueeze(dim=0).unsqueeze(dim=1)
 
                 s_b = s_gt_arr[:, :, np.random.choice(self.exp_config.annotator_range)]
                 mask = torch.tensor(s_b, dtype=torch.float32).to(self.device)
-                val_mask = mask.unsqueeze(dim=0).unsqueeze(dim=1)
+                if len(patch.shape) == 2:
+                    val_patch = patch.unsqueeze(dim = 0).unsqueeze(dim = 1)
+                    val_mask = mask.unsqueeze(dim=0).unsqueeze(dim=1)
+
+                else:
+                    val_mask = mask.unsqueeze(dim = 0)
+                    val_patch = patch.unsqueeze(dim = 0)
+
                 val_masks = torch.tensor(s_gt_arr, dtype=torch.float32).to(self.device)  # HWC
                 val_masks = val_masks.transpose(0, 2).transpose(1, 2)  # CHW
 
