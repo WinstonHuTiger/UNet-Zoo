@@ -262,7 +262,7 @@ class UNetModel:
 
             self.avg_ged = torch.mean(ged_tensor)
             self.avg_ncc = torch.mean(ncc_tensor)
-            self.avg_qubiq = np.mean(np.mean(qubiq_list, axis=1))
+            self.avg_qubiq = np.mean(qubiq_list)
 
             self.logger.info(' - Foreground dice: %.4f' % torch.mean(self.foreground_dice))
             self.logger.info(' - Mean (neg.) ELBO: %.4f' % self.val_elbo)
