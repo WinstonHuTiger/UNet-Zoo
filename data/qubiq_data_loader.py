@@ -207,7 +207,7 @@ def prepare_data(root, dataset, task, output, output_file):
         labels[tt] = []
 
         for i, image in enumerate(temp_images):
-            x, y = __transform(tt, dataset, image, temp_labels[i])
+            x, y = __transform(tt, dataset, image, temp_labels[i] )
             # x = cv.resize(x, dsize=(128, 128))
             # y = cv.resize(y, dsize=(128, 128))
             images[tt].append(x)
@@ -256,7 +256,7 @@ def __transform(mode, dataset, x, y):
                 y = y[:, 160:800, :]
         x = x[:, :, :, 0]
 
-    x = np.transpose(x, [1, 2, 0])
+    # x = np.transpose(x, [1, 2, 0])
     y = np.transpose(y, [1, 2, 0])
     return x, y
 

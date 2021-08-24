@@ -54,7 +54,7 @@ class lidc_data():
 
 
 if __name__ == '__main__':
-    from models.experiments import phiseg_rev_7_5_12 as exp_config
+    from models.experiments import phiseg_rev_7_5_24 as exp_config
     from config import local_config as sys_config
     lidc = lidc_data(sys_config=sys_config, exp_config=exp_config)
 
@@ -64,12 +64,20 @@ if __name__ == '__main__':
     print("Shape of validation images LIDC: {}".format(lidc.validation.images.shape))
     print("Shape of validation labels LIDC: {}".format(lidc.validation.labels.shape))
 
-    from data import uzh_prostate_data
-    uzh = uzh_prostate_data.uzh_prostate_data(sys_config=sys_config, exp_config=exp_config)
-    print("Shape of test images uzh: {}".format(uzh.test.images.shape))
-    print("Shape of test labels uzh: {}".format(uzh.test.labels.shape))
+    # print("Shape of train images LIDC: {}".format(lidc.train.images.shape))
 
-    print("Shape of validation images uzh: {}".format(uzh.validation.images.shape))
-    print("Shape of validation labels uzh: {}".format(uzh.validation.labels.shape))
+    for ii in range(2):
+        X_tr, Y_tr = lidc.train.next_batch(4)
+        print(np.mean(X_tr))
+        print(X_tr.shape)
+        print(Y_tr.shape)
+        print('--')
+    # from data import uzh_prostate_data
+    # uzh = uzh_prostate_data.uzh_prostate_data(sys_config=sys_config, exp_config=exp_config)
+    # print("Shape of test images uzh: {}".format(uzh.test.images.shape))
+    # print("Shape of test labels uzh: {}".format(uzh.test.labels.shape))
+    #
+    # print("Shape of validation images uzh: {}".format(uzh.validation.images.shape))
+    # print("Shape of validation labels uzh: {}".format(uzh.validation.labels.shape))
 
     print('hello')

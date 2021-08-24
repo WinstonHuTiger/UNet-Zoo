@@ -5,14 +5,14 @@ from data import qubiq_data_loader
 
 class qubiq_data():
 
-    def __init__(self, exp_config):
+    def __init__(self, sys_config, exp_config):
 
         data = qubiq_data_loader.load_and_process_data(
             root=exp_config.data_root,
             dataset=exp_config.dataset,
             task=exp_config.task,
             output=exp_config.output,
-            preprocessing_folder=exp_config.preproc_folder,
+            preprocessing_folder=sys_config.preproc_folder,
             force_overwrite=True,
         )
 
@@ -56,9 +56,9 @@ class qubiq_data():
 if __name__ == '__main__':
 
     # If the program is called as main, perform some debugging operations
-    from phiseg.experiments import phiseg_7_5_qubiq as exp_config
-
-    data = qubiq_data(exp_config)
+    from models.experiments import phiseg_rev_7_5_qubiq_4 as exp_config
+    from config import local_config
+    data = qubiq_data(local_config, exp_config)
 
     print(data.validation.images.shape)
 

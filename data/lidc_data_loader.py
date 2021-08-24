@@ -99,7 +99,7 @@ def prepare_data(input_file, output_file):
 
     for tt in ['test', 'train', 'val']:
 
-        groups[tt].create_dataset('uids', data=np.asarray(uids[tt], dtype=np.int))
+        groups[tt].create_dataset('uids', data=np.asarray(uids[tt], dtype=np.int64))
         groups[tt].create_dataset('labels', data=np.asarray(labels[tt], dtype=np.uint8))
         groups[tt].create_dataset('images', data=np.asarray(images[tt], dtype=np.float))
 
@@ -108,7 +108,7 @@ def prepare_data(input_file, output_file):
 
 def load_and_maybe_process_data(input_file,
                                 preprocessing_folder,
-                                force_overwrite=False):
+                                force_overwrite=True):
     '''
     This function is used to load and if necessary preprocesses the LIDC challenge data
 
@@ -138,8 +138,8 @@ def load_and_maybe_process_data(input_file,
 
 if __name__ == '__main__':
 
-    input_file = '/itet-stor/baumgach/bmicdatasets-originals/Originals/LIDC-IDRI/data_lidc.pickle'
-    preprocessing_folder = '/srv/glusterfs/baumgach/preproc_data/lidc'
+    input_file = r'D:\dev_x\cv_uncertainty\qubiq\data_lidc.pickle'
+    preprocessing_folder = r'D:\dev_x\UNet-Zoo\preproc'
 
     d = load_and_maybe_process_data(input_file, preprocessing_folder, force_overwrite=True)
 
