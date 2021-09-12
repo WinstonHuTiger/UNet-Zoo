@@ -9,7 +9,7 @@ log_dir_name = 'qubiq'
 data_loader = qubiq_data
 dataset = "prostate"
 output = "annotator"
-data_root = r'D:\dev_x\bAttenUnet_test\qubiq'
+data_root = r'/home/qingqiao/bAttenUnet_test/qubiq'
 task = 0
 
 # number of filter for the latent levels, they will be applied in the order as loaded into the list

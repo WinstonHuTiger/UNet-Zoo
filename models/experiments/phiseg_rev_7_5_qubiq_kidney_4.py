@@ -9,14 +9,14 @@ log_dir_name = 'qubiq'
 data_loader = qubiq_data
 dataset = 'kidney'
 output = "annotator"
-data_root = r'D:\dev_x\bAttenUnet_test\qubiq'
+data_root = r'/home/qingqiao/bAttenUnet_test/qubiq'
 task = 0
 
 # number of filter for the latent levels, they will be applied in the order as loaded into the list
 filter_channels = [32, 64, 128, 192, 192, 192, 192]
 latent_levels = 5
 
-iterations = 50000
+iterations = 5000
 
 n_classes = 3
 num_labels_per_subject = 3
@@ -33,15 +33,15 @@ epochs_to_train = 20
 batch_size = 4
 image_size = (1, 512, 512)
 
-augmentation_options = {'do_flip_lr': True,
-                        'do_flip_ud': True,
-                        'do_rotations': True,
-                        'do_scaleaug': True,
+augmentation_options = {'do_flip_lr': False,
+                        'do_flip_ud': False,
+                        'do_rotations': False,
+                        'do_scaleaug': False,
                         'nlabels': n_classes}
 
 input_normalisation = normalise_image
 
-validation_samples = 4
+validation_samples = 10
 num_validation_images = 'all'
 
 logging_frequency = 100

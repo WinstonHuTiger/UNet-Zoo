@@ -43,7 +43,7 @@ num_validation_images = 100
 
 logging_frequency = 1000
 validation_frequency = 1000
-
+learning_rate = 1e-3
 weight_decay = 10e-5
 
 pretrained_model = None #'PHISeg_best_ged.pth'

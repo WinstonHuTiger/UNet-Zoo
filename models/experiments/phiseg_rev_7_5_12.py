@@ -12,7 +12,7 @@ data_loader = lidc_data
 filter_channels = [32, 64, 128, 192, 192, 192, 192]
 latent_levels = 5
 
-iterations = 500
+iterations = 5000000
 
 n_classes = 2
 num_labels_per_subject = 4
@@ -26,7 +26,7 @@ exponential_weighting = True
 # use 1 for grayscale, 3 for RGB images
 input_channels = 1
 epochs_to_train = 20
-batch_size = 12
+batch_size = 36
 image_size = (1, 128, 128)
 
 augmentation_options = {'do_flip_lr': True,
@@ -40,11 +40,11 @@ input_normalisation = normalise_image
 validation_samples = 16
 num_validation_images = 100
 
-logging_frequency = 10
-validation_frequency = 10
+logging_frequency = 1000
+validation_frequency = 1000
 
-learning_rate = 1e-3
 weight_decay = 10e-5
+learning_rate =1e-3
 
 pretrained_model = None
 # model

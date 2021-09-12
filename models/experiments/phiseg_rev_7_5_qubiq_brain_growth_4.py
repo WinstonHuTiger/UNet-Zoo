@@ -10,14 +10,14 @@ log_dir_name = 'qubiq'
 data_loader = qubiq_data
 dataset = "brain-growth"
 output = "annotator"
-data_root = r'D:\dev_x\bAttenUnet_test\qubiq'
+data_root = r'/home/qingqiao/bAttenUnet_test/qubiq'
 task = 0
 
 # number of filter for the latent levels, they will be applied in the order as loaded into the list
 filter_channels = [32, 64, 128, 192, 192, 192, 192]
 latent_levels = 5
 
-iterations = 500000000
+iterations = 5000
 
 n_classes = 7
 num_labels_per_subject = 7
@@ -42,7 +42,7 @@ augmentation_options = {'do_flip_lr': True,
 
 input_normalisation = normalise_image
 
-validation_samples = 4
+validation_samples = 50
 num_validation_images = 'all'
 
 logging_frequency = 100

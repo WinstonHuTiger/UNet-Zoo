@@ -113,6 +113,7 @@ class UNetModel:
 
             self.net.forward(patch, mask, training=True)
             self.loss = self.net.loss(mask)
+            # print('the loss', self.loss)
 
             self.tot_loss += self.loss
 
@@ -364,7 +365,7 @@ class UNetModel:
         self.net.eval()
         with torch.no_grad():
 
-            model_selection = self.exp_config.experiment_name + '_best_loss.pth'
+            model_selection = self.exp_config.experiment_name + '_best_ged.pth'
             self.logger.info('Testing {}'.format(model_selection))
 
             self.logger.info('Loading pretrained model {}'.format(model_selection))
@@ -384,12 +385,18 @@ class UNetModel:
             ged_list = []
             dice_list = []
             ncc_list = []
+            qubiq_list = []
+            sa_list = []
+            sd_list = []
 
             time_ = time.time()
 
             end_dice = 0.0
             end_ged = 0.0
             end_ncc = 0.0
+            end_sa = 0.0
+            end_sd = 0.0
+            end_qubiq = 0.0
 
             for i in range(10):
                 self.logger.info('Doing iteration {}'.format(i))
@@ -420,10 +427,11 @@ class UNetModel:
                     # training=True for constructing posterior as well
                     s_out_eval_list = self.net.forward(patch_arrangement, mask_arrangement, training=False)
                     s_prediction_softmax_arrangement = self.net.accumulate_output(s_out_eval_list, use_softmax=True)
-
+                    
                     s_prediction_softmax_mean = torch.mean(s_prediction_softmax_arrangement, axis=0)
                     s_prediction_arrangement = torch.argmax(s_prediction_softmax_arrangement, dim=1)
-
+                    
+                    
                     ground_truth_arrangement = val_masks  # nlabels, H, W
                     ged = utils.generalised_energy_distance(s_prediction_arrangement, ground_truth_arrangement,
                                                             nlabels=self.exp_config.n_classes - 1,
@@ -434,7 +442,17 @@ class UNetModel:
                     ground_truth_arrangement_one_hot = utils.convert_batch_to_onehot(s_gt_arr_r,
                                                                                      nlabels=self.exp_config.n_classes)
                     ncc = utils.variance_ncc_dist(s_prediction_softmax_arrangement, ground_truth_arrangement_one_hot)
-
+                    ground_truth_numpy = np.expand_dims(s_gt_arr.transpose((2, 1, 0)), axis=0)
+                    ground_truth_numpy = np.concatenate([ground_truth_numpy] * n_samples, axis=0)
+                    prediction_numpy = s_prediction_softmax_arrangement.data.cpu().numpy()
+                    
+                    qubiq =  utils.QUBIQ(ground_truth_numpy,prediction_numpy)
+                    sa_temp_list = []
+                    sd_temp_list = []
+                    for i in range(n_samples):
+                        sa_temp_list.append(utils.sample_accuracy(prediction_numpy[i], ground_truth_numpy[i]))
+                        sd_temp_list.append(utils.sample_diversity(prediction_numpy[i]))
+                    
                     s_ = torch.argmax(s_prediction_softmax_mean, dim=0)  # HW
                     s = val_mask.view(val_mask.shape[-2], val_mask.shape[-1])  # HW
 
@@ -457,16 +475,23 @@ class UNetModel:
 
                     ged_list.append(ged)
                     ncc_list.append(ncc)
+                    qubiq_list.append(qubiq)
+                    sa_list.append(np.mean(sa_temp_list))
+                    sd_list.append(np.mean(sd_temp_list))
 
                     if ii % 100 == 0:
                         self.logger.info(' - Mean GED: %.4f' % torch.mean(torch.tensor(ged_list)))
                         self.logger.info(' - Mean NCC: %.4f' % torch.mean(torch.tensor(ncc_list)))
+                        self.logger.info(" - Mean QUBIQ: %.4f" % np.mean(np.asarray(qubiq_list)))
+                        self.logger.info(" - Mean SA: %.4f" % np.mean(np.asarray(sa_list)))
+                        self.logger.info(" - Mean SD: %.4f" % np.mean(np.asarray(sd_list)))
 
                 dice_tensor = torch.tensor(dice_list)
                 per_structure_dice = dice_tensor.mean(dim=0)
 
                 ged_tensor = torch.tensor(ged_list)
                 ncc_tensor = torch.tensor(ncc_list)
+                
 
                 model_path = os.path.join(
                     sys_config.log_root,
@@ -483,6 +508,9 @@ class UNetModel:
 
                 self.avg_ged = torch.mean(ged_tensor)
                 self.avg_ncc = torch.mean(ncc_tensor)
+                self.avg_qubiq = np.mean(qubiq_list)
+                self.avg_sa = np.mean(sa_list)
+                self.avg_sd = np.mean(sd_list)
 
                 logging.info('-- GED: --')
                 logging.info(torch.mean(ged_tensor))
@@ -492,19 +520,40 @@ class UNetModel:
                 logging.info(torch.mean(ncc_tensor))
                 logging.info(torch.std(ncc_tensor))
 
+                logging.info("-- QUBIQ: --")
+                logging.info(np.mean(qubiq_list))
+                logging.info(np.std(qubiq_list))
+
+                logging.info("-- SA: --")
+                logging.info(np.mean(sa_list))
+                logging.info(np.std(sa_list))
+
+                logging.info("-- SD: --")
+                logging.info(np.mean(sd_list))
+                logging.info(np.std(sd_list))
+
                 self.logger.info(' - Foreground dice: %.4f' % torch.mean(self.foreground_dice))
                 self.logger.info(' - Mean (neg.) ELBO: %.4f' % self.val_elbo)
                 self.logger.info(' - Mean GED: %.4f' % self.avg_ged)
                 self.logger.info(' - Mean NCC: %.4f' % self.avg_ncc)
+                self.logger.info(" - Mean QUBIQ: %.4f" % self.avg_ged)
+                self.logger.info(" - Mean SA: %.4f" % self.avg_sa )
+                self.logger.info(" - Mean SD: %.4f" % self.avg_sd)
 
                 self.logger.info('Testing took {} seconds'.format(time.time() - time_))
 
                 end_dice += self.avg_dice
                 end_ged += self.avg_ged
                 end_ncc += self.avg_ncc
+                end_sa += self.avg_sa
+                end_qubiq += self.avg_qubiq
+                end_sd += self.avg_sd
             self.logger.info('Mean dice: {}'.format(end_dice / 10))
             self.logger.info('Mean ged: {}'.format(end_ged / 10))
             self.logger.info('Mean ncc: {}'.format(end_ncc / 10))
+            self.logger.info('Mean qubiq: {}'.format(end_qubiq / 10)) 
+            self.logger.info('Mean sample accuracy: {}'.format(end_sa / 10))
+            self.logger.info('Mean sample diversity: {}'.format(end_sd / 10))
 
     def generate_images(self, data, sys_config):
         self.net.eval()
@@ -609,7 +658,8 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
     else:
         import config.system as sys_config
-
+    #torch.backends.cudnn.enabled=False
+    #torch.cuda.set_device(0)
     exp_config = SourceFileLoader(config_module, config_file).load_module()
 
     log_dir = os.path.join(sys_config.log_root, exp_config.log_dir_name, exp_config.experiment_name)
