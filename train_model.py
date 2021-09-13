@@ -445,17 +445,19 @@ class UNetModel:
                     ground_truth_numpy = np.expand_dims(s_gt_arr.transpose((2, 1, 0)), axis=0)
                     ground_truth_numpy = np.concatenate([ground_truth_numpy] * n_samples, axis=0)
                     prediction_numpy = s_prediction_softmax_arrangement.data.cpu().numpy()
+                    # prediction_numpy = self.net.accumulate_output(s_out_eval_list, use_softmax=False).data.cpu().numpy()
                     
                     qubiq =  utils.QUBIQ(ground_truth_numpy,prediction_numpy)
                     sa_temp_list = []
                     sd_temp_list = []
-                    for i in range(n_samples):
-                        sa_temp_list.append(utils.sample_accuracy(prediction_numpy[i], ground_truth_numpy[i]))
-                        sd_temp_list.append(utils.sample_diversity(prediction_numpy[i]))
+                    # for ij in range(n_samples):
+                    #     sa_temp_list.append(utils.sample_accuracy(prediction_numpy[ij] > 0.9, ground_truth_numpy[ij]))
+                    #     # print(prediction_numpy[ij].shape)
+                    #     sd_temp_list.append(utils.sample_diversity(prediction_numpy[ij] > 0.9))
                     
                     s_ = torch.argmax(s_prediction_softmax_mean, dim=0)  # HW
                     s = val_mask.view(val_mask.shape[-2], val_mask.shape[-1])  # HW
-
+                    # print(sd_temp_list)
                     # Write losses to list
                     per_lbl_dice = []
                     for lbl in range(self.exp_config.n_classes):
@@ -476,8 +478,8 @@ class UNetModel:
                     ged_list.append(ged)
                     ncc_list.append(ncc)
                     qubiq_list.append(qubiq)
-                    sa_list.append(np.mean(sa_temp_list))
-                    sd_list.append(np.mean(sd_temp_list))
+                    sa_list.append(utils.sample_accuracy(  s_prediction_arrangement.data.cpu().numpy(), ground_truth_arrangement.data.cpu().numpy()) )
+                    sd_list.append(utils.sample_diversity( s_prediction_arrangement.data.cpu().numpy(), ground_truth_arrangement.data.cpu().numpy()) )
 
                     if ii % 100 == 0:
                         self.logger.info(' - Mean GED: %.4f' % torch.mean(torch.tensor(ged_list)))
@@ -536,7 +538,7 @@ class UNetModel:
                 self.logger.info(' - Mean (neg.) ELBO: %.4f' % self.val_elbo)
                 self.logger.info(' - Mean GED: %.4f' % self.avg_ged)
                 self.logger.info(' - Mean NCC: %.4f' % self.avg_ncc)
-                self.logger.info(" - Mean QUBIQ: %.4f" % self.avg_ged)
+                self.logger.info(" - Mean QUBIQ: %.4f" % self.avg_qubiq)
                 self.logger.info(" - Mean SA: %.4f" % self.avg_sa )
                 self.logger.info(" - Mean SD: %.4f" % self.avg_sd)
 
