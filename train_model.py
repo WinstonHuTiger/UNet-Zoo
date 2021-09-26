@@ -93,6 +93,8 @@ class UNetModel:
             self.training_writer = SummaryWriter()
             self.validation_writer = SummaryWriter(comment='_validation')
         self.iteration = 0
+    def cal_params(self):
+        return sum(p.numel() for p in self.net.parameters() if p.requires_grad)
 
     def train(self, data):
         self.net.train()
@@ -130,7 +132,7 @@ class UNetModel:
 
             if self.iteration % self.exp_config.logging_frequency == 0:
                 self.logger.info('Iteration {} Loss {}'.format(self.iteration, self.loss))
-                # self._create_tensorboard_summary()
+                self._create_tensorboard_summary()
                 self.tot_loss = 0
                 self.kl_loss = 0
                 self.reconstruction_loss = 0
@@ -344,14 +346,14 @@ class UNetModel:
             self.validation_writer.add_scalar('Reconstruction_loss', self.val_recon_loss, global_step=self.iteration)
 
             # plot images of current patch for summary
-            sample = torch.softmax(self.net.sample(), dim=1)
-            sample1 = torch.chunk(sample, 2, dim=1)[self.exp_config.n_classes - 1]
+            # sample = torch.softmax(self.net.sample(), dim=1)
+            # sample1 = torch.chunk(sample, 2, dim=1)[self.exp_config.n_classes - 1]
 
-            self.training_writer.add_image('Patch/GT/Sample',
-                                           torch.cat([self.patch,
-                                                      self.mask.view(-1, 1, self.exp_config.image_size[1],
-                                                                     self.exp_config.image_size[2]), sample1],
-                                                     dim=2), global_step=self.iteration, dataformats='NCHW')
+            # self.training_writer.add_image('Patch/GT/Sample',
+            #                                torch.cat([self.patch,
+            #                                           self.mask.view(-1, 1, self.exp_config.image_size[1],
+            #                                                          self.exp_config.image_size[2]), sample1],
+            #                                          dim=2), global_step=self.iteration, dataformats='NCHW')
 
             if self.device == torch.device('cuda'):
                 allocated_memory = torch.cuda.max_memory_allocated(self.device)
@@ -365,7 +367,7 @@ class UNetModel:
         self.net.eval()
         with torch.no_grad():
 
-            model_selection = self.exp_config.experiment_name + '_best_ged.pth'
+            model_selection = self.exp_config.experiment_name + '_validation_ckpt.pth'
             self.logger.info('Testing {}'.format(model_selection))
 
             self.logger.info('Loading pretrained model {}'.format(model_selection))
@@ -400,14 +402,14 @@ class UNetModel:
 
             for i in range(10):
                 self.logger.info('Doing iteration {}'.format(i))
-                n_samples = 50
+                n_samples = 16
 
-                for ii in range(data.test.images.shape[0]):
+                for ii in range(data.validation.images.shape[0]):
 
-                    s_gt_arr = data.test.labels[ii, ...]
+                    s_gt_arr = data.validation.labels[ii, ...]
 
                     # from HW to NCHW
-                    x_b = data.test.images[ii, ...]
+                    x_b = data.validation.images[ii, ...]
                     patch = torch.tensor(x_b, dtype=torch.float32).to(self.device)
                     val_patch = patch.unsqueeze(dim=0).unsqueeze(dim=1)
 
@@ -585,23 +587,33 @@ class UNetModel:
 
             n_samples = 10
 
-            for ii in range(31, 100):
-                s_gt_arr = data.test.labels[ii, ...]
+            for ii in range(0, 7):
+                s_gt_arr = data.validation.labels[ii, ...]
 
                 # from HW to NCHW
-                x_b = data.test.images[ii, ...]
+                x_b = data.validation.images[ii, ...]
+                if len(x_b.shape) == 3 and x_b.shape[0] != 4:
+                    x_b = x_b.squeeze()
+
                 patch = torch.tensor(x_b, dtype=torch.float32).to(self.device)
-                val_patch = patch.unsqueeze(dim=0).unsqueeze(dim=1)
 
                 s_b = s_gt_arr[:, :, np.random.choice(self.exp_config.annotator_range)]
                 mask = torch.tensor(s_b, dtype=torch.float32).to(self.device)
-                val_mask = mask.unsqueeze(dim=0).unsqueeze(dim=1)
+                if len(patch.shape) == 2:
+                    val_patch = patch.unsqueeze(dim = 0).unsqueeze(dim = 1)
+                    val_mask = mask.unsqueeze(dim=0).unsqueeze(dim=1)
+
+                else:
+                    val_mask = mask.unsqueeze(dim = 0)
+                    val_patch = patch.unsqueeze(dim = 0)
+
                 val_masks = torch.tensor(s_gt_arr, dtype=torch.float32).to(self.device)  # HWC
                 val_masks = val_masks.transpose(0, 2).transpose(1, 2)  # CHW
 
-                patch_arrangement = val_patch.repeat((n_samples, 1, 1, 1))
+                patch_arrangement = val_patch.repeat((self.exp_config.validation_samples, 1, 1, 1))
 
-                mask_arrangement = val_mask.repeat((n_samples, 1, 1, 1))
+                mask_arrangement = val_mask.repeat((self.exp_config.validation_samples, 1, 1, 1))
+
 
                 self.mask = mask_arrangement
                 self.patch = patch_arrangement
@@ -628,7 +640,7 @@ class UNetModel:
                        pad_value=1,
                        scale_each=True,
                        normalize=True)
-        for i in range(10):
+        for i in range(len(sample)):
             save_image(sample[i].float(),
                        os.path.join(save_location, '{}sample{}.png'.format(iteration, i)),
                        pad_value=1,
